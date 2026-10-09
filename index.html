@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>His & Hers Todo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <h1>His & Hers</h1>
+        <p>Two lists, one life.</p>
+    </header>
+
+    <main class="todo-container">
+
+        <section class="todo-list his">
+            <h2>His Todo</h2>
+            <form class="todo-form" data-owner="his">
+                <input type="text" placeholder="Add a task..." required>
+                <button type="submit">+</button>
+            </form>
+            <ul id="his-todos"></ul>
+        </section>
+
+        <section class="todo-list hers">
+            <h2>Hers Todo</h2>
+            <form class="todo-form" data-owner="hers">
+                <input type="text" placeholder="Add a task..." required>
+                <button type="submit">+</button>
+            </form>
+            <ul id="hers-todos"></ul>
+        </section>
+
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
