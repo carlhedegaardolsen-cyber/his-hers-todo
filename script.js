@@ -1,37 +1,114 @@
 const SUPABASE_URL = "https://szhnuktnsyjqiqlqessv.supabase.co";
 const SUPABASE_KEY = "sb_publishable_jHfLkut2pVyMjGanZE1pkQ_1kn16OQa";
 
-const supabaseClient = window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_KEY
-);
+let supabaseClient = null;
+let TASK_COLUMN = null; // will be set to either 'task' or 'text' depending on the DB
+let initialLoadDone = false;
 
 const forms = document.querySelectorAll(".todo-form");
+
+// disable all form inputs until we've confirmed Supabase client and task column
+function setFormsEnabled(enabled) {
+    forms.forEach((form) => {
+        const input = form.querySelector("input");
+        const btn = form.querySelector("button[type=submit]");
+        if (input) input.disabled = !enabled;
+        if (btn) btn.disabled = !enabled;
+    });
+}
+
+// Show a user-friendly error and disable UI
+function fatal(msg) {
+    alert(msg);
+    setFormsEnabled(false);
+}
+
+// Initialize Supabase client safely
+function initSupabase() {
+    if (!window.supabase || typeof window.supabase.createClient !== "function") {
+        fatal('Supabase biblioteket kunne ikke indlæses. Tjek at CDN-scriptet for @supabase/supabase-js er til stede og at du har internetforbindelse.');
+        return null;
+    }
+
+    try {
+        return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    } catch (err) {
+        fatal('Kunne ikke initialisere Supabase-klienten: ' + err.message);
+        return null;
+    }
+}
+
+// Try to detect whether the table uses column "task" or "text".
+// We make small select calls for each candidate column and pick the one that succeeds.
+async function detectTaskColumn() {
+    const candidates = ["task", "text"];
+    for (const col of candidates) {
+        const { data, error } = await supabaseClient
+            .from("todos")
+            .select(col)
+            .limit(1);
+
+        if (!error) {
+            TASK_COLUMN = col;
+            return col;
+        }
+
+        // If the error indicates column doesn't exist, continue trying next candidate.
+        // Otherwise, bubble up the error.
+        // Supabase/Postgres returns SQLSTATE 42703 for undefined column; but the client may not expose code.
+        // We'll treat any error as a signal to try the next candidate, but keep the last error for reporting.
+    }
+
+    // If we get here, neither candidate worked.
+    return null;
+}
+
+// Keep track of per-form save state to prevent duplicate submissions.
+const formSaving = new WeakMap();
 
 forms.forEach((form) => {
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
 
+        // prevent submit if not ready
+        if (!initialLoadDone) {
+            alert('Appen er ikke færdig med at indlæse endnu — prøv igen om et øjeblik.');
+            return;
+        }
+
+        if (formSaving.get(form)) return; // already saving
+
         const input = form.querySelector("input");
-        const task = input.value.trim();
+        const taskText = input.value.trim();
         const owner = form.dataset.owner;
 
-        if (!task) return;
+        if (!taskText) return;
 
+        if (!TASK_COLUMN) {
+            alert('Kan ikke oprette opgaven fordi appen ikke ved hvilken kolonne i databasen der indeholder teksten.');
+            return;
+        }
+
+        formSaving.set(form, true);
         input.disabled = true;
+        const submitBtn = form.querySelector("button[type=submit]");
+        if (submitBtn) submitBtn.disabled = true;
 
-        const { error } = await supabaseClient
+        // build row dynamically using detected TASK_COLUMN
+        const row = { completed: false, owner };
+        row[TASK_COLUMN] = taskText;
+
+        const { data, error } = await supabaseClient
             .from("todos")
-            .insert({
-                task: task,
-                completed: false,
-                owner: owner
-            });
+            .insert(row);
 
         input.disabled = false;
+        if (submitBtn) submitBtn.disabled = false;
+        formSaving.set(form, false);
 
         if (error) {
-            alert("Kunne ikke gemme opgaven: " + error.message);
+            console.error('Fejl ved indsættelse:', error);
+            alert('Kunne ikke gemme opgaven: ' + error.message);
             input.focus();
             return;
         }
@@ -43,27 +120,53 @@ forms.forEach((form) => {
 });
 
 async function loadTodos() {
+    if (!supabaseClient) return;
+
+    // fetch all todos ordered by created_at if available
     const { data, error } = await supabaseClient
         .from("todos")
         .select("*")
         .order("created_at", { ascending: true });
 
     if (error) {
-        console.error("Fejl ved hentning:", error.message);
+        console.error("Fejl ved hentning:", error);
         alert("Kunne ikke hente opgaver: " + error.message);
         return;
     }
 
-    document.getElementById("blue-todos").replaceChildren();
-    document.getElementById("pink-todos").replaceChildren();
+    // Detect task column if we haven't yet
+    if (!TASK_COLUMN) {
+        // If we have at least one row, try to inspect keys
+        if (Array.isArray(data) && data.length > 0) {
+            const row = data[0];
+            if (Object.prototype.hasOwnProperty.call(row, "task")) TASK_COLUMN = "task";
+            else if (Object.prototype.hasOwnProperty.call(row, "text")) TASK_COLUMN = "text";
+        }
 
-    data.forEach((todo) => {
-        addTodoToPage(todo);
-    });
+        // If still unknown, attempt explicit detection (select task/text)
+        if (!TASK_COLUMN) {
+            const detected = await detectTaskColumn();
+            if (detected) TASK_COLUMN = detected;
+        }
+
+        if (!TASK_COLUMN) {
+            fatal('Kunne ikke bestemme hvilken kolonne i todos-tabellen der indeholder opgave-teksten. Sørg for at tabellen har enten en "task" eller "text" kolonne (NOT NULL).');
+            return;
+        }
+    }
+
+    const blueList = document.getElementById("his-todos") || document.getElementById("blue-todos");
+    const pinkList = document.getElementById("hers-todos") || document.getElementById("pink-todos");
+
+    if (blueList) blueList.replaceChildren();
+    if (pinkList) pinkList.replaceChildren();
+
+    data.forEach((todo) => addTodoToPage(todo));
 }
 
 function addTodoToPage(todo) {
-    const list = document.getElementById(`${todo.owner}-todos`);
+    const ownerKey = todo.owner;
+    const list = document.getElementById(`${ownerKey}-todos`);
     if (!list) return;
 
     const li = document.createElement("li");
@@ -71,7 +174,7 @@ function addTodoToPage(todo) {
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
-    checkbox.checked = todo.completed;
+    checkbox.checked = !!todo.completed;
 
     checkbox.addEventListener("change", async () => {
         checkbox.disabled = true;
@@ -93,7 +196,8 @@ function addTodoToPage(todo) {
     });
 
     const span = document.createElement("span");
- span.textContent = todo.task;
+    const text = (TASK_COLUMN && (todo[TASK_COLUMN] ?? todo.task ?? todo.text)) || "";
+    span.textContent = text;
 
     const deleteButton = document.createElement("button");
     deleteButton.className = "delete-btn";
@@ -121,4 +225,16 @@ function addTodoToPage(todo) {
     list.appendChild(li);
 }
 
-loadTodos();
+// Boot
+(async function boot() {
+    setFormsEnabled(false);
+
+    supabaseClient = initSupabase();
+    if (!supabaseClient) return;
+
+    // load todos and determine task column
+    await loadTodos();
+
+    initialLoadDone = true;
+    setFormsEnabled(true);
+})();
