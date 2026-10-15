@@ -95,7 +95,8 @@ forms.forEach((form) => {
         if (submitBtn) submitBtn.disabled = true;
 
         // build row dynamically using detected TASK_COLUMN
-        const row = { completed: false, owner };
+        // The database requires category as well; use the same value as the selected list.
+        const row = { completed: false, owner, category: owner };
         row[TASK_COLUMN] = taskText;
 
         const { data, error } = await supabaseClient
