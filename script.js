@@ -23,7 +23,7 @@ forms.forEach((form) => {
         const { error } = await supabaseClient
             .from("todos")
             .insert({
-                text: task,
+                task: task,
                 completed: false,
                 owner: owner
             });
@@ -93,7 +93,7 @@ function addTodoToPage(todo) {
     });
 
     const span = document.createElement("span");
-    span.textContent = todo.text;
+ span.textContent = todo.task;
 
     const deleteButton = document.createElement("button");
     deleteButton.className = "delete-btn";
