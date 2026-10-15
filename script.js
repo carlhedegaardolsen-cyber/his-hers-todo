@@ -83,6 +83,10 @@ forms.forEach((form) => {
         const owner = form.dataset.owner;
 
         if (!taskText) return;
+        if (owner !== "his" && owner !== "hers") {
+            alert("Kunne ikke gemme opgaven: listen mangler en gyldig ejer-værdi (his/hers).");
+            return;
+        }
 
         if (!TASK_COLUMN) {
             alert('Kan ikke oprette opgaven fordi appen ikke ved hvilken kolonne i databasen der indeholder teksten.');
@@ -95,9 +99,10 @@ forms.forEach((form) => {
         if (submitBtn) submitBtn.disabled = true;
 
         // build row dynamically using detected TASK_COLUMN
-        // The database requires category as well; use the same value as the selected list.
-        const row = { completed: false, owner, category: owner };
+        // Send category explicitly; the database reports this column as NOT NULL.
+        const row = { completed: false, owner: owner, category: owner };
         row[TASK_COLUMN] = taskText;
+        console.log("Todo insert payload:", row);
 
         const { data, error } = await supabaseClient
             .from("todos")
@@ -109,7 +114,7 @@ forms.forEach((form) => {
 
         if (error) {
             console.error('Fejl ved indsættelse:', error);
-            alert('Kunne ikke gemme opgaven: ' + error.message);
+            alert('Kunne ikke gemme opgaven (category sendt: "' + String(row.category) + '"): ' + error.message);
             input.focus();
             return;
         }
