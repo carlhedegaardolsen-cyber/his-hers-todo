@@ -1,41 +1,503 @@
 <!DOCTYPE html>
-<html lang="da">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>His & Hers Todo</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>His & Hers</title>
+<style>
+:root { --ink:#25283b; --muted:#777b8d; --line:#e5e7ef; --blue:#eaf3ff; --blue-line:#bfd7ff; --blue-ink:#2861b5; --pink:#fff0f6; --pink-line:#ffd0e2; --pink-ink:#c0447b; --surface:#fff; }
+* { box-sizing:border-box; }
+body { margin:0; padding:28px 18px 50px; background:#f7f8fc; color:var(--ink); font-family:Arial,sans-serif; }
+header { max-width:1100px; margin:0 auto 26px; }
+h1 { margin:0 0 6px; font-size:32px; }
+h2 { margin:0 0 18px; font-size:21px; }
+h3 { margin:0 0 12px; font-size:16px; }
+.muted { color:var(--muted); font-size:13px; }
+.tabs { display:flex; flex-wrap:wrap; gap:8px; margin:20px 0; }
+.tab { border:1px solid var(--line); padding:10px 16px; border-radius:10px; background:#fff; color:var(--ink); cursor:pointer; font-weight:600; }
+.tab.active { background:var(--ink); border-color:var(--ink); color:#fff; }
+.view { max-width:1100px; margin:0 auto; }
+.hidden { display:none !important; }
+.todo-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.panel { min-width:0; padding:22px; border:1px solid var(--line); border-radius:16px; background:#fff; box-shadow:0 5px 20px rgba(30,40,80,.04); }
+.panel.queen { background:var(--pink); border-color:var(--pink-line); }
+.panel.knight { background:var(--blue); border-color:var(--blue-line); }
+.queen h2 { color:var(--pink-ink); }
+.knight h2 { color:var(--blue-ink); }
+.add-form { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; margin:14px 0 18px; }
+.add-form input[type=text] { width:100%; min-width:0; }
+input[type=text], input[type=date] { min-width:0; width:100%; padding:11px 12px; border:1px solid #d9dce7; border-radius:9px; font:inherit; background:white; color:var(--ink); }
+.deadline-wrap { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:8px; color:var(--muted); font-size:12px; }
+.deadline-wrap input { max-width:190px; }
+button { font:inherit; }
+.add-btn { border:0; border-radius:9px; padding:0 16px; background:var(--ink); color:#fff; font-size:23px; cursor:pointer; }
+.queen .add-btn { background:var(--pink-ink); }
+.knight .add-btn { background:var(--blue-ink); }
+.task-list { display:grid; gap:9px; }
+.task { display:flex; align-items:flex-start; gap:10px; background:rgba(255,255,255,.88); border:1px solid rgba(150,155,175,.15); padding:12px; border-radius:10px; }
+.task-body { flex:1; min-width:0; }
+.task-name { overflow-wrap:anywhere; font-weight:600; }
+.task-meta { margin-top:6px; display:flex; flex-wrap:wrap; gap:6px 12px; color:var(--muted); font-size:12px; line-height:1.5; }
+.task-meta .due-soon { color:#b45309; font-weight:700; }
+.task-meta .overdue { color:#b91c1c; font-weight:700; }
+.task-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+.small-btn { border:1px solid var(--line); background:#fff; border-radius:7px; padding:6px 8px; font-size:12px; color:var(--ink); cursor:pointer; white-space:nowrap; }
+.small-btn.danger { color:#b91c1c; }
+.empty { color:var(--muted); font-size:13px; padding:10px 0; }
+.section { margin-top:22px; }
+.completed-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.completed-task .task-name { text-decoration:line-through; color:#85899b; }
+.person-label { font-size:12px; color:var(--muted); margin:0 0 12px; }
+.calendar-layout { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(250px,1fr); gap:20px; align-items:start; }
+.calendar-panel { background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px; }
+.calendar-controls { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:16px; }
+.calendar-controls h2 { margin:0; font-size:19px; }
+.calendar-controls .small-btn { padding:8px 10px; }
+.calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; }
+.weekday { padding:6px 0; text-align:center; font-size:11px; color:var(--muted); font-weight:700; }
+.day { position:relative; min-height:76px; border:1px solid #edf0f5; background:#fff; border-radius:8px; padding:7px 5px; text-align:left; color:var(--ink); cursor:pointer; }
+.day.other-month { color:#b0b4c2; background:#fafbfe; }
+.day.selected { border:2px solid var(--ink); padding:6px 4px; }
+.day.today .day-number { display:inline-flex; align-items:center; justify-content:center; width:23px; height:23px; border-radius:50%; background:var(--ink); color:#fff; }
+.day-counts { margin-top:5px; display:grid; gap:3px; font-size:10px; line-height:1.2; }
+.day-counts span { display:block; border-radius:4px; padding:3px 4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.count-added { background:#edf4ff; color:#2559a7; }
+.count-due { background:#fff0f6; color:#b12e6d; }
+.legend { display:flex; flex-wrap:wrap; gap:10px; font-size:12px; color:var(--muted); margin-top:12px; }
+.legend span { display:inline-flex; align-items:center; gap:5px; }
+.legend i { display:inline-block; width:9px; height:9px; border-radius:3px; }
+.selected-date-title { margin:0 0 10px; font-size:18px; }
+.calendar-event { border:1px solid var(--line); border-radius:10px; padding:11px; margin-bottom:9px; background:#fff; }
+.event-kind { text-transform:uppercase; letter-spacing:.04em; font-size:10px; font-weight:700; color:var(--muted); margin-bottom:5px; }
+.event-kind.deadline { color:var(--pink-ink); }
+.event-kind.added { color:var(--blue-ink); }
+.event-task { font-weight:600; overflow-wrap:anywhere; }
+.event-meta { margin-top:5px; font-size:12px; color:var(--muted); }
+.event-done { opacity:.65; }
+.fitness-form { display:flex; gap:8px; margin-bottom:16px; }
+.fitness-form input { flex:1; }
+.fitness-entry { padding:12px 0; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:center; }
+.fitness-entry span { flex:1; overflow-wrap:anywhere; }
+@media (max-width:760px) { .todo-columns,.completed-columns,.calendar-layout { grid-template-columns:1fr; } .day { min-height:63px; padding:5px 3px; } .day-counts { font-size:9px; } .panel { padding:16px; } }
+</style>
 </head>
 <body>
+<header>
+  <h1>His &amp; Hers</h1>
+  <div class="muted" id="todayLabel"></div>
+  <nav class="tabs" aria-label="Main sections">
+    <button class="tab active" data-view="todos">Todos</button>
+    <button class="tab" data-view="calendar">Calendar</button>
+    <button class="tab" data-view="fitness">Fitness</button>
+  </nav>
+</header>
 
-    <header>
-        <h1>His & Hers</h1>
-        <p>Two lists, one life.</p>
-    </header>
+<main>
+  <section id="todosView" class="view">
+    <div class="todo-columns">
+      <section class="panel queen">
+        <h2>Beauty Queen's ToDo</h2>
+        <div class="muted">What needs to get done?</div>
+        <form class="add-form" id="leftForm">
+          <input id="todoInputLeft" type="text" placeholder="Add a task..." aria-label="Queen's task" required>
+          <button class="add-btn" type="submit" aria-label="Add Queen's task">+</button>
+          <div class="deadline-wrap"><label for="deadlineLeft">Deadline (optional)</label><input id="deadlineLeft" type="date"></div>
+        </form>
+        <h3>To do</h3>
+        <div class="task-list" id="todoListLeft"></div>
+      </section>
+      <section class="panel knight">
+        <h2>Honorable Knight's ToDo</h2>
+        <div class="muted">What needs to get done?</div>
+        <form class="add-form" id="rightForm">
+          <input id="todoInputRight" type="text" placeholder="Add a task..." aria-label="Knight's task" required>
+          <button class="add-btn" type="submit" aria-label="Add Knight's task">+</button>
+          <div class="deadline-wrap"><label for="deadlineRight">Deadline (optional)</label><input id="deadlineRight" type="date"></div>
+        </form>
+        <h3>To do</h3>
+        <div class="task-list" id="todoListRight"></div>
+      </section>
+    </div>
+    <section class="section panel">
+      <h2>Completed tasks</h2>
+      <div class="completed-columns">
+        <div><h3>Completed by Beauty Queen</h3><div class="task-list" id="completedListLeft"></div></div>
+        <div><h3>Completed by Honorable Knight</h3><div class="task-list" id="completedListRight"></div></div>
+      </div>
+    </section>
+  </section>
 
-    <main class="todo-container">
+  <section id="calendarView" class="view hidden">
+    <div class="calendar-layout">
+      <div class="calendar-panel">
+        <div class="calendar-controls">
+          <button class="small-btn" id="prevMonth" aria-label="Previous month">←</button>
+          <h2 id="monthTitle"></h2>
+          <button class="small-btn" id="nextMonth" aria-label="Next month">→</button>
+          <button class="small-btn" id="todayButton">Today</button>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+        <div class="legend"><span><i style="background:#bfd7ff"></i> Added</span><span><i style="background:#ffd0e2"></i> Deadline</span></div>
+      </div>
+      <aside class="calendar-panel">
+        <h2 class="selected-date-title" id="selectedDateTitle"></h2>
+        <div class="muted" style="margin-bottom:14px">Tasks appear on the day they were added and again on their deadline.</div>
+        <div id="selectedDateEvents"></div>
+      </aside>
+    </div>
+  </section>
 
-        <section class="todo-list his">
-            <h2>His Todo</h2>
-            <form class="todo-form" data-owner="his">
-                <input type="text" placeholder="Add a task..." required>
-                <button type="submit">+</button>
-            </form>
-            <ul id="his-todos"></ul>
-        </section>
+  <section id="fitnessView" class="view hidden">
+    <div class="panel">
+      <h2>Fitness</h2>
+      <div class="muted" style="margin-bottom:18px">Keep track of what you achieved.</div>
+      <form class="fitness-form" id="fitnessForm">
+        <input id="fitnessInput" type="text" placeholder="e.g. Bench 60kg × 8" required>
+        <button class="small-btn" type="submit">Log</button>
+      </form>
+      <div id="fitnessList"></div>
+      <div class="muted" id="fitnessCount" style="margin-top:12px"></div>
+    </div>
+  </section>
+</main>
 
-        <section class="todo-list hers">
-            <h2>Hers Todo</h2>
-            <form class="todo-form" data-owner="hers">
-                <input type="text" placeholder="Add a task..." required>
-                <button type="submit">+</button>
-            </form>
-            <ul id="hers-todos"></ul>
-        </section>
-
-    </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="script.js?v=category-fix-20261015"></script>
+<script>
+const SUPABASE_URL = "https://jwgwvbflfdqwuebbrvhm.supabase.co";
+const SUPABASE_KEY = "sb_publishable_nropcg8seYXHdTiZSpAAmg_4xk5MqXY";
+const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+let todos = [];
+let fitnessLogs = [];
+let currentMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let selectedDateKey = dateKey(new Date());
+const todoStorageKey = "my-todo-items";
+const fitnessStorageKey = "my-fitness-logs";
+
+document.getElementById("todayLabel").textContent = new Date().toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+document.querySelectorAll(".tab").forEach(function(button) {
+  button.addEventListener("click", function() { showView(button.dataset.view); });
+});
+function showView(view) {
+  ["todos","calendar","fitness"].forEach(function(name) {
+    document.getElementById(name + "View").classList.toggle("hidden", name !== view);
+  });
+  document.querySelectorAll(".tab").forEach(function(button) { button.classList.toggle("active", button.dataset.view === view); });
+  if (view === "calendar") renderCalendar();
+}
+function localItems(key) { try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch (err) { return []; } }
+function saveLocal(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+function personForList(list) { return list === "right" ? "Honorable Knight" : "Beauty Queen"; }
+function normalizeTodo(todo) {
+  const list = todo.list === "right" || todo.category === "right" ? "right" : "left";
+  return Object.assign({}, todo, { text: todo.task || todo.text || "", list:list });
+}
+function dateKey(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return "";
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function formatDate(value) {
+  if (!value) return "—";
+  const d = value.length === 10 ? new Date(value + "T12:00:00") : new Date(value);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" });
+}
+function formatDateTime(value) {
+  if (!value) return "Unknown";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "Unknown";
+  return d.toLocaleString("en-GB", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
+}
+function isOverdue(todo) {
+  if (!todo.deadline || todo.completed) return false;
+  return todo.deadline < dateKey(new Date());
+}
+async function loadTodos() {
+  if (db) {
+    const result = await db.from("todos").select("*").order("created_at", { ascending:true });
+    if (result.error) { console.error("Loading todos failed:", result.error); alert("Could not load todos: " + result.error.message); return; }
+    todos = (result.data || []).map(normalizeTodo);
+  } else {
+    todos = localItems(todoStorageKey).map(normalizeTodo);
+  }
+  renderTodos();
+  if (!document.getElementById("calendarView").classList.contains("hidden")) renderCalendar();
+}
+function renderTodos() {
+  renderActiveList("left", "todoListLeft");
+  renderActiveList("right", "todoListRight");
+  renderCompletedList("left", "completedListLeft");
+  renderCompletedList("right", "completedListRight");
+}
+function renderActiveList(list, elementId) {
+  const target = document.getElementById(elementId);
+  target.replaceChildren();
+  const items = todos.filter(function(todo) { return todo.list === list && !todo.completed; });
+  if (!items.length) { target.innerHTML = '<div class="empty">No active tasks.</div>'; return; }
+  items.forEach(function(todo) { target.appendChild(makeTaskCard(todo, false)); });
+}
+function renderCompletedList(list, elementId) {
+  const target = document.getElementById(elementId);
+  target.replaceChildren();
+  const person = personForList(list);
+  const items = todos.filter(function(todo) {
+    return todo.completed && (todo.completed_by || personForList(todo.list)) === person;
+  }).sort(function(a,b) { return new Date(b.completed_at || b.created_at || 0) - new Date(a.completed_at || a.created_at || 0); });
+  if (!items.length) { target.innerHTML = '<div class="empty">No completed tasks yet.</div>'; return; }
+  items.forEach(function(todo) { target.appendChild(makeTaskCard(todo, true)); });
+}
+function makeTaskCard(todo, completed) {
+  const card = document.createElement("div");
+  card.className = "task" + (completed ? " completed-task" : "");
+  const body = document.createElement("div");
+  body.className = "task-body";
+  const name = document.createElement("div");
+  name.className = "task-name";
+  name.textContent = todo.text || "(Untitled task)";
+  body.appendChild(name);
+  const meta = document.createElement("div");
+  meta.className = "task-meta";
+  const added = document.createElement("span");
+  added.textContent = "Added: " + formatDateTime(todo.created_at);
+  meta.appendChild(added);
+  if (todo.deadline) {
+    const deadline = document.createElement("span");
+    deadline.textContent = "Deadline: " + formatDate(todo.deadline);
+    if (isOverdue(todo)) deadline.className = "overdue";
+    else if (!todo.completed && todo.deadline <= dateKey(new Date(Date.now()+3*86400000))) deadline.className = "due-soon";
+    meta.appendChild(deadline);
+  }
+  if (completed) {
+    const done = document.createElement("span");
+    done.textContent = "Completed by: " + (todo.completed_by || personForList(todo.list));
+    if (todo.completed_at) done.textContent += " · " + formatDateTime(todo.completed_at);
+    meta.appendChild(done);
+  }
+  body.appendChild(meta);
+  const actions = document.createElement("div");
+  actions.className = "task-actions";
+  if (!completed) {
+    const doneBtn = makeButton("Done", "small-btn", function() {
+      updateTodo(todo, { completed:true, completed_by:personForList(todo.list), completed_at:new Date().toISOString() });
+    });
+    actions.appendChild(doneBtn);
+  } else {
+    actions.appendChild(makeButton("Undo", "small-btn", function() {
+      updateTodo(todo, { completed:false, completed_by:null, completed_at:null });
+    }));
+  }
+  actions.appendChild(makeButton("Delete", "small-btn danger", function() { deleteTodo(todo); }));
+  card.append(body, actions);
+  return card;
+}
+function makeButton(label, className, action) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = className;
+  button.textContent = label;
+  button.addEventListener("click", action);
+  return button;
+}
+async function addTodo(list) {
+  const input = document.getElementById(list === "left" ? "todoInputLeft" : "todoInputRight");
+  const deadlineInput = document.getElementById(list === "left" ? "deadlineLeft" : "deadlineRight");
+  const text = input.value.trim();
+  if (!text) return;
+  const createdAt = new Date().toISOString();
+  const row = {
+    task:text, text:text, completed:false, list:list, category:list,
+    created_at:createdAt, deadline:deadlineInput.value || null,
+    completed_by:null, completed_at:null
+  };
+  if (db) {
+    const result = await db.from("todos").insert(row);
+    if (result.error) { console.error("Adding todo failed:", result.error); alert("Could not save task: " + result.error.message); return; }
+  } else {
+    todos.push(Object.assign({ id:Date.now() }, row));
+    saveLocal(todoStorageKey, todos);
+  }
+  input.value = "";
+  deadlineInput.value = "";
+  await loadTodos();
+}
+async function updateTodo(todo, changes) {
+  if (db) {
+    const result = await db.from("todos").update(changes).eq("id", todo.id);
+    if (result.error) { console.error("Updating todo failed:", result.error); alert("Could not update task: " + result.error.message); return; }
+  } else {
+    todos = todos.map(function(item) { return item.id === todo.id ? Object.assign({}, item, changes) : item; });
+    saveLocal(todoStorageKey, todos);
+  }
+  await loadTodos();
+}
+async function deleteTodo(todo) {
+  if (db) {
+    const result = await db.from("todos").delete().eq("id", todo.id);
+    if (result.error) { console.error("Deleting todo failed:", result.error); alert("Could not delete task: " + result.error.message); return; }
+  } else {
+    todos = todos.filter(function(item) { return item.id !== todo.id; });
+    saveLocal(todoStorageKey, todos);
+  }
+  await loadTodos();
+}
+document.getElementById("leftForm").addEventListener("submit", function(event) { event.preventDefault(); addTodo("left"); });
+document.getElementById("rightForm").addEventListener("submit", function(event) { event.preventDefault(); addTodo("right"); });
+
+function renderCalendar() {
+  const title = document.getElementById("monthTitle");
+  title.textContent = currentMonth.toLocaleDateString("en-GB", { month:"long", year:"numeric" });
+  const grid = document.getElementById("calendarGrid");
+  grid.replaceChildren();
+  ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].forEach(function(day) {
+    const label = document.createElement("div");
+    label.className = "weekday";
+    label.textContent = day;
+    grid.appendChild(label);
+  });
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const offset = (firstDay.getDay()+6)%7;
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const cellCount = Math.ceil((offset + daysInMonth)/7)*7;
+  const todayKey = dateKey(new Date());
+  for (let i=0; i<cellCount; i++) {
+    const d = new Date(year, month, i-offset+1);
+    const key = dateKey(d);
+    const addedCount = todos.filter(function(todo) { return dateKey(todo.created_at || "") === key; }).length;
+    const dueCount = todos.filter(function(todo) { return todo.deadline === key; }).length;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "day";
+    if (d.getMonth() !== month) button.classList.add("other-month");
+    if (key === selectedDateKey) button.classList.add("selected");
+    if (key === todayKey) button.classList.add("today");
+    const number = document.createElement("div");
+    number.className = "day-number";
+    number.textContent = d.getDate();
+    button.appendChild(number);
+    if (addedCount || dueCount) {
+      const counts = document.createElement("div");
+      counts.className = "day-counts";
+      if (addedCount) {
+        const added = document.createElement("span"); added.className = "count-added";
+        added.textContent = addedCount + " added"; counts.appendChild(added);
+      }
+      if (dueCount) {
+        const due = document.createElement("span"); due.className = "count-due";
+        due.textContent = dueCount + " due"; counts.appendChild(due);
+      }
+      button.appendChild(counts);
+    }
+    button.setAttribute("aria-label", formatDate(key) + ", " + addedCount + " added, " + dueCount + " deadlines");
+    button.addEventListener("click", function() { selectedDateKey = key; currentMonth = new Date(d.getFullYear(),d.getMonth(),1); renderCalendar(); });
+    grid.appendChild(button);
+  }
+  renderSelectedDateEvents();
+}
+function renderSelectedDateEvents() {
+  document.getElementById("selectedDateTitle").textContent = formatDate(selectedDateKey);
+  const target = document.getElementById("selectedDateEvents");
+  target.replaceChildren();
+  const events = [];
+  todos.forEach(function(todo) {
+    if (dateKey(todo.created_at || "") === selectedDateKey) events.push({ kind:"added", todo:todo });
+    if (todo.deadline === selectedDateKey) events.push({ kind:"deadline", todo:todo });
+  });
+  events.sort(function(a,b) {
+    if (a.kind !== b.kind) return a.kind === "deadline" ? -1 : 1;
+    return String(a.todo.text || "").localeCompare(String(b.todo.text || ""));
+  });
+  if (!events.length) { target.innerHTML = '<div class="empty">Nothing scheduled for this date.</div>'; return; }
+  events.forEach(function(event) {
+    const card = document.createElement("div");
+    card.className = "calendar-event" + (event.todo.completed ? " event-done" : "");
+    const kind = document.createElement("div");
+    kind.className = "event-kind " + event.kind;
+    kind.textContent = event.kind === "deadline" ? "Deadline" : "Added";
+    const name = document.createElement("div");
+    name.className = "event-task";
+    name.textContent = event.todo.text || "(Untitled task)";
+    const meta = document.createElement("div");
+    meta.className = "event-meta";
+    meta.textContent = personForList(event.todo.list) + (event.todo.completed ? " · Completed" : " · To do");
+    card.append(kind, name, meta);
+    target.appendChild(card);
+  });
+}
+document.getElementById("prevMonth").addEventListener("click", function() {
+  currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth()-1, 1);
+  selectedDateKey = dateKey(currentMonth);
+  renderCalendar();
+});
+document.getElementById("nextMonth").addEventListener("click", function() {
+  currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth()+1, 1);
+  selectedDateKey = dateKey(currentMonth);
+  renderCalendar();
+});
+document.getElementById("todayButton").addEventListener("click", function() {
+  const today = new Date();
+  currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  selectedDateKey = dateKey(today);
+  renderCalendar();
+});
+
+async function loadFitness() {
+  if (db) {
+    const result = await db.from("fitness_logs").select("*").order("created_at", { ascending:false });
+    if (result.error) { console.error("Loading fitness logs failed:", result.error); return; }
+    fitnessLogs = result.data || [];
+  } else fitnessLogs = localItems(fitnessStorageKey);
+  renderFitness();
+}
+function renderFitness() {
+  const list = document.getElementById("fitnessList");
+  list.replaceChildren();
+  fitnessLogs.forEach(function(log) {
+    const row = document.createElement("div");
+    row.className = "fitness-entry";
+    const text = document.createElement("span");
+    text.textContent = (log.date || formatDate(log.created_at)) + " — " + (log.text || "");
+    row.appendChild(text);
+    row.appendChild(makeButton("Delete", "small-btn danger", function() { deleteFitness(log.id); }));
+    list.appendChild(row);
+  });
+  document.getElementById("fitnessCount").textContent = fitnessLogs.length + (fitnessLogs.length === 1 ? " workout entry" : " workout entries");
+}
+async function addFitness() {
+  const input = document.getElementById("fitnessInput");
+  const text = input.value.trim();
+  if (!text) return;
+  const row = { date:new Date().toLocaleDateString("en-GB"), text:text, created_at:new Date().toISOString() };
+  if (db) {
+    const result = await db.from("fitness_logs").insert({ date:row.date, text:row.text });
+    if (result.error) { console.error("Saving fitness failed:", result.error); alert("Could not save fitness entry: " + result.error.message); return; }
+  } else {
+    fitnessLogs.unshift(Object.assign({ id:Date.now() }, row));
+    saveLocal(fitnessStorageKey, fitnessLogs);
+  }
+  input.value = "";
+  await loadFitness();
+}
+async function deleteFitness(id) {
+  if (db) {
+    const result = await db.from("fitness_logs").delete().eq("id", id);
+    if (result.error) { console.error("Deleting fitness failed:", result.error); alert("Could not delete fitness entry: " + result.error.message); return; }
+  } else {
+    fitnessLogs = fitnessLogs.filter(function(log) { return log.id !== id; });
+    saveLocal(fitnessStorageKey, fitnessLogs);
+  }
+  await loadFitness();
+}
+document.getElementById("fitnessForm").addEventListener("submit", function(event) { event.preventDefault(); addFitness(); });
+
+async function boot() {
+  if (!db) { todos = localItems(todoStorageKey).map(normalizeTodo); fitnessLogs = localItems(fitnessStorageKey); renderTodos(); renderCalendar(); renderFitness(); return; }
+  await loadTodos();
+  await loadFitness();
+  renderCalendar();
+}
+boot();
+</script>
 </body>
 </html>
-
