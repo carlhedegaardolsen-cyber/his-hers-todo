@@ -272,7 +272,7 @@ function makeTaskCard(todo, completed) {
     const currentDeadline = todo.deadline || "";
     const newDeadline = prompt("Deadline (YYYY-MM-DD), or leave blank:", currentDeadline);
     if (newDeadline === null) return;
-    if (newDeadline && !/^\\d{4}-\\d{2}-\\d{2}$/.test(newDeadline)) { alert("Please use YYYY-MM-DD for the deadline."); return; }
+    if (newDeadline && !/^\d{4}-\d{2}-\d{2}$/.test(newDeadline)) { alert("Please use YYYY-MM-DD for the deadline."); return; }
     await updateTodo(todo, { task:newText.trim(), text:newText.trim(), deadline:newDeadline || null });
   }));
   if (!completed) {
