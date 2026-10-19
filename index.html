@@ -74,9 +74,6 @@ button { font:inherit; }
 .event-task { font-weight:600; overflow-wrap:anywhere; }
 .event-meta { margin-top:5px; font-size:12px; color:var(--muted); }
 .event-done { opacity:.65; }
-.fitness-form { display:flex; gap:8px; margin-bottom:16px; }
-.fitness-form input { flex:1; }
-.fitness-entry { padding:12px 0; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:center; }
 .fitness-entry span { flex:1; overflow-wrap:anywhere; }
 @media (max-width:760px) { .todo-columns,.completed-columns,.calendar-layout { grid-template-columns:1fr; } .day { min-height:63px; padding:5px 3px; } .day-counts { font-size:9px; } .panel { padding:16px; } }
 </style>
@@ -88,7 +85,6 @@ button { font:inherit; }
   <nav class="tabs" aria-label="Main sections">
     <button class="tab active" data-view="todos">Todos</button>
     <button class="tab" data-view="calendar">Calendar</button>
-    <button class="tab" data-view="fitness">Fitness</button>
   </nav>
 </header>
 
@@ -141,24 +137,17 @@ button { font:inherit; }
       </div>
       <aside class="calendar-panel">
         <h2 class="selected-date-title" id="selectedDateTitle"></h2>
-        <div class="muted" style="margin-bottom:14px">Tasks appear on the day they were added and again on their deadline.</div>
+        <div class="muted" style="margin-bottom:14px">Tasks appear when added and on their deadline. Add your own events below.</div>
+        <form id="eventForm" class="add-form" style="margin-bottom:14px">
+          <input id="eventTitle" type="text" placeholder="Event name..." aria-label="Event name" required>
+          <button class="add-btn" type="submit" aria-label="Add calendar event">+</button>
+          <div class="deadline-wrap"><label for="eventTime">Time (optional)</label><input id="eventTime" type="time"></div>
+        </form>
         <div id="selectedDateEvents"></div>
       </aside>
     </div>
   </section>
 
-  <section id="fitnessView" class="view hidden">
-    <div class="panel">
-      <h2>Fitness</h2>
-      <div class="muted" style="margin-bottom:18px">Keep track of what you achieved.</div>
-      <form class="fitness-form" id="fitnessForm">
-        <input id="fitnessInput" type="text" placeholder="e.g. Bench 60kg × 8" required>
-        <button class="small-btn" type="submit">Log</button>
-      </form>
-      <div id="fitnessList"></div>
-      <div class="muted" id="fitnessCount" style="margin-top:12px"></div>
-    </div>
-  </section>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -167,18 +156,18 @@ const SUPABASE_URL = "https://jwgwvbflfdqwuebbrvhm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_nropcg8seYXHdTiZSpAAmg_4xk5MqXY";
 const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 let todos = [];
-let fitnessLogs = [];
+let calendarEvents = [];
 let currentMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let selectedDateKey = dateKey(new Date());
 const todoStorageKey = "my-todo-items";
-const fitnessStorageKey = "my-fitness-logs";
+const eventStorageKey = "my-calendar-events";
 
 document.getElementById("todayLabel").textContent = new Date().toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
 document.querySelectorAll(".tab").forEach(function(button) {
   button.addEventListener("click", function() { showView(button.dataset.view); });
 });
 function showView(view) {
-  ["todos","calendar","fitness"].forEach(function(name) {
+  ["todos","calendar"].forEach(function(name) {
     document.getElementById(name + "View").classList.toggle("hidden", name !== view);
   });
   document.querySelectorAll(".tab").forEach(function(button) { button.classList.toggle("active", button.dataset.view === view); });
@@ -276,6 +265,16 @@ function makeTaskCard(todo, completed) {
   body.appendChild(meta);
   const actions = document.createElement("div");
   actions.className = "task-actions";
+  actions.appendChild(makeButton("Edit", "small-btn", async function() {
+    const newText = prompt("Edit task:", todo.text || "");
+    if (newText === null) return;
+    if (!newText.trim()) { alert("Task cannot be empty."); return; }
+    const currentDeadline = todo.deadline || "";
+    const newDeadline = prompt("Deadline (YYYY-MM-DD), or leave blank:", currentDeadline);
+    if (newDeadline === null) return;
+    if (newDeadline && !/^\\d{4}-\\d{2}-\\d{2}$/.test(newDeadline)) { alert("Please use YYYY-MM-DD for the deadline."); return; }
+    await updateTodo(todo, { task:newText.trim(), text:newText.trim(), deadline:newDeadline || null });
+  }));
   if (!completed) {
     const doneBtn = makeButton("Done", "small-btn", function() {
       updateTodo(todo, { completed:true, completed_by:personForList(todo.list), completed_at:new Date().toISOString() });
@@ -366,6 +365,7 @@ function renderCalendar() {
     const key = dateKey(d);
     const addedCount = todos.filter(function(todo) { return dateKey(todo.created_at || "") === key; }).length;
     const dueCount = todos.filter(function(todo) { return todo.deadline === key; }).length;
+    const eventCount = calendarEvents.filter(function(event) { return event.event_date === key; }).length;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "day";
@@ -376,7 +376,7 @@ function renderCalendar() {
     number.className = "day-number";
     number.textContent = d.getDate();
     button.appendChild(number);
-    if (addedCount || dueCount) {
+    if (addedCount || dueCount || eventCount) {
       const counts = document.createElement("div");
       counts.className = "day-counts";
       if (addedCount) {
@@ -387,9 +387,13 @@ function renderCalendar() {
         const due = document.createElement("span"); due.className = "count-due";
         due.textContent = dueCount + " due"; counts.appendChild(due);
       }
+      if (eventCount) {
+        const custom = document.createElement("span"); custom.className = "count-added";
+        custom.textContent = eventCount + (eventCount === 1 ? " event" : " events"); counts.appendChild(custom);
+      }
       button.appendChild(counts);
     }
-    button.setAttribute("aria-label", formatDate(key) + ", " + addedCount + " added, " + dueCount + " deadlines");
+    button.setAttribute("aria-label", formatDate(key) + ", " + addedCount + " added, " + dueCount + " deadlines, " + eventCount + " events");
     button.addEventListener("click", function() { selectedDateKey = key; currentMonth = new Date(d.getFullYear(),d.getMonth(),1); renderCalendar(); });
     grid.appendChild(button);
   }
@@ -404,24 +408,27 @@ function renderSelectedDateEvents() {
     if (dateKey(todo.created_at || "") === selectedDateKey) events.push({ kind:"added", todo:todo });
     if (todo.deadline === selectedDateKey) events.push({ kind:"deadline", todo:todo });
   });
+  calendarEvents.filter(function(event) { return event.event_date === selectedDateKey; }).forEach(function(event) { events.push({ kind:"event", event:event }); });
   events.sort(function(a,b) {
-    if (a.kind !== b.kind) return a.kind === "deadline" ? -1 : 1;
-    return String(a.todo.text || "").localeCompare(String(b.todo.text || ""));
+    if (a.kind !== b.kind) return ({event:0, deadline:1, added:2})[a.kind] - ({event:0, deadline:1, added:2})[b.kind];
+    return String(a.todo ? a.todo.text : a.event.title).localeCompare(String(b.todo ? b.todo.text : b.event.title));
   });
   if (!events.length) { target.innerHTML = '<div class="empty">Nothing scheduled for this date.</div>'; return; }
   events.forEach(function(event) {
     const card = document.createElement("div");
-    card.className = "calendar-event" + (event.todo.completed ? " event-done" : "");
+    const isCustom = event.kind === "event";
+    card.className = "calendar-event" + (!isCustom && event.todo.completed ? " event-done" : "");
     const kind = document.createElement("div");
     kind.className = "event-kind " + event.kind;
-    kind.textContent = event.kind === "deadline" ? "Deadline" : "Added";
+    kind.textContent = isCustom ? "Calendar event" : (event.kind === "deadline" ? "Deadline" : "Added");
     const name = document.createElement("div");
     name.className = "event-task";
-    name.textContent = event.todo.text || "(Untitled task)";
+    name.textContent = isCustom ? event.event.title : (event.todo.text || "(Untitled task)");
     const meta = document.createElement("div");
     meta.className = "event-meta";
-    meta.textContent = personForList(event.todo.list) + (event.todo.completed ? " · Completed" : " · To do");
+    meta.textContent = isCustom ? ((event.event.event_time ? event.event.event_time.slice(0,5) + " · " : "") + formatDate(event.event.event_date)) : (personForList(event.todo.list) + (event.todo.completed ? " · Completed" : " · To do"));
     card.append(kind, name, meta);
+    if (isCustom) card.appendChild(makeButton("Delete event", "small-btn danger", function() { deleteCalendarEvent(event.event.id); }));
     target.appendChild(card);
   });
 }
@@ -442,59 +449,50 @@ document.getElementById("todayButton").addEventListener("click", function() {
   renderCalendar();
 });
 
-async function loadFitness() {
+async function loadCalendarEvents() {
   if (db) {
-    const result = await db.from("fitness_logs").select("*").order("created_at", { ascending:false });
-    if (result.error) { console.error("Loading fitness logs failed:", result.error); return; }
-    fitnessLogs = result.data || [];
-  } else fitnessLogs = localItems(fitnessStorageKey);
-  renderFitness();
+    const result = await db.from("calendar_events").select("*").order("event_date", { ascending:true });
+    if (result.error) { console.error("Loading calendar events failed:", result.error); alert("Could not load calendar events: " + result.error.message); return; }
+    calendarEvents = result.data || [];
+  } else calendarEvents = localItems(eventStorageKey);
 }
-function renderFitness() {
-  const list = document.getElementById("fitnessList");
-  list.replaceChildren();
-  fitnessLogs.forEach(function(log) {
-    const row = document.createElement("div");
-    row.className = "fitness-entry";
-    const text = document.createElement("span");
-    text.textContent = (log.date || formatDate(log.created_at)) + " — " + (log.text || "");
-    row.appendChild(text);
-    row.appendChild(makeButton("Delete", "small-btn danger", function() { deleteFitness(log.id); }));
-    list.appendChild(row);
-  });
-  document.getElementById("fitnessCount").textContent = fitnessLogs.length + (fitnessLogs.length === 1 ? " workout entry" : " workout entries");
-}
-async function addFitness() {
-  const input = document.getElementById("fitnessInput");
-  const text = input.value.trim();
-  if (!text) return;
-  const row = { date:new Date().toLocaleDateString("en-GB"), text:text, created_at:new Date().toISOString() };
+async function addCalendarEvent() {
+  const input = document.getElementById("eventTitle");
+  const timeInput = document.getElementById("eventTime");
+  const title = input.value.trim();
+  if (!title) return;
+  const row = { title:title, event_date:selectedDateKey, event_time:timeInput.value || null };
   if (db) {
-    const result = await db.from("fitness_logs").insert({ date:row.date, text:row.text });
-    if (result.error) { console.error("Saving fitness failed:", result.error); alert("Could not save fitness entry: " + result.error.message); return; }
+    const result = await db.from("calendar_events").insert(row);
+    if (result.error) { console.error("Saving calendar event failed:", result.error); alert("Could not save calendar event: " + result.error.message); return; }
   } else {
-    fitnessLogs.unshift(Object.assign({ id:Date.now() }, row));
-    saveLocal(fitnessStorageKey, fitnessLogs);
+    calendarEvents.push(Object.assign({ id:Date.now() }, row));
+    saveLocal(eventStorageKey, calendarEvents);
   }
   input.value = "";
-  await loadFitness();
+  timeInput.value = "";
+  await loadCalendarEvents();
+  renderCalendar();
 }
-async function deleteFitness(id) {
+async function deleteCalendarEvent(id) {
   if (db) {
-    const result = await db.from("fitness_logs").delete().eq("id", id);
-    if (result.error) { console.error("Deleting fitness failed:", result.error); alert("Could not delete fitness entry: " + result.error.message); return; }
+    const result = await db.from("calendar_events").delete().eq("id", id);
+    if (result.error) { alert("Could not delete calendar event: " + result.error.message); return; }
   } else {
-    fitnessLogs = fitnessLogs.filter(function(log) { return log.id !== id; });
-    saveLocal(fitnessStorageKey, fitnessLogs);
+    calendarEvents = calendarEvents.filter(function(event) { return event.id !== id; });
+    saveLocal(eventStorageKey, calendarEvents);
   }
-  await loadFitness();
+  await loadCalendarEvents();
+  renderCalendar();
 }
-document.getElementById("fitnessForm").addEventListener("submit", function(event) { event.preventDefault(); addFitness(); });
-
+document.getElementById("eventForm").addEventListener("submit", function(event) {
+  event.preventDefault();
+  addCalendarEvent();
+});
 async function boot() {
-  if (!db) { todos = localItems(todoStorageKey).map(normalizeTodo); fitnessLogs = localItems(fitnessStorageKey); renderTodos(); renderCalendar(); renderFitness(); return; }
+  if (!db) { todos = localItems(todoStorageKey).map(normalizeTodo); calendarEvents = localItems(eventStorageKey); renderTodos(); renderCalendar(); return; }
   await loadTodos();
-  await loadFitness();
+  await loadCalendarEvents();
   renderCalendar();
 }
 boot();
